@@ -1,0 +1,707 @@
+const { createApp, ref, onMounted, computed } = Vue;
+const { createRouter, createWebHashHistory } = VueRouter;
+
+// Axios Configuration
+const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+
+const api = axios.create({
+    baseURL: isProduction
+        ? 'https://your-production-backend-url.com/public/' // Ganti dengan URL hosting backend Anda
+        : 'http://localhost/uasweb2/backend-api/public/',
+    headers: {
+        'Content-Type': 'application/json'
+    }
+});
+
+// Request Interceptor: Inject Token
+api.interceptors.request.use(config => {
+    const token = localStorage.getItem('token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+}, error => {
+    return Promise.reject(error);
+});
+
+// Response Interceptor: Handle 401
+api.interceptors.response.use(response => response, error => {
+    if (error.response && error.response.status === 401) {
+        localStorage.removeItem('isLoggedIn');
+        localStorage.removeItem('token');
+        alert('Sesi Anda habis. Silakan login kembali.');
+        window.location.hash = '/login';
+    }
+    return Promise.reject(error);
+});
+
+// --- UI COMPONENTS ---
+
+const AdminSidebar = {
+    props: ['user'],
+    template: `
+        <div class="fixed inset-y-0 left-0 w-64 bg-primary text-white transform -translate-x-full md:translate-x-0 transition-transform duration-300 z-50 shadow-2xl">
+            <div class="flex flex-col h-full">
+                <!-- Branding -->
+                <div class="p-6 border-b border-white/10 flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-secondary rounded-xl flex items-center justify-center shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
+                    <span class="text-xl font-bold tracking-tight">E-Report Admin</span>
+                </div>
+
+                <!-- Profile Small -->
+                <div class="p-6 bg-white/5 mx-4 my-4 rounded-2xl flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-accent rounded-full flex items-center justify-center text-primary font-bold">
+                        {{ user.name?.charAt(0) || 'A' }}
+                    </div>
+                    <div class="overflow-hidden">
+                        <p class="text-sm font-bold truncate">{{ user.name }}</p>
+                        <p class="text-xs text-white/50 truncate">@{{ user.username }}</p>
+                    </div>
+                </div>
+
+                <!-- Nav Links -->
+                <nav class="flex-1 px-4 space-y-1 overflow-y-auto mt-2">
+                    <router-link to="/admin/dashboard" class="flex items-center px-4 py-3 rounded-xl transition-all group hover:bg-white/10" :class="{ 'bg-secondary text-white shadow-md': $route.path === '/admin/dashboard' }">
+                        <svg class="w-5 h-5 mr-3 opacity-70 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                        <span class="font-medium text-sm">Ringkasan</span>
+                    </router-link>
+                    
+                    <router-link to="/admin/reports" class="flex items-center px-4 py-3 rounded-xl transition-all group hover:bg-white/10" :class="{ 'bg-secondary text-white shadow-md': $route.path === '/admin/reports' }">
+                        <svg class="w-5 h-5 mr-3 opacity-70 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+                        <span class="font-medium text-sm">Data Pengaduan</span>
+                    </router-link>
+
+                    <router-link to="/admin/categories" class="flex items-center px-4 py-3 rounded-xl transition-all group hover:bg-white/10" :class="{ 'bg-secondary text-white shadow-md': $route.path === '/admin/categories' }">
+                        <svg class="w-5 h-5 mr-3 opacity-70 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        <span class="font-medium text-sm">Kategori</span>
+                    </router-link>
+                </nav>
+
+                <!-- Footer Sidebar -->
+                <div class="p-6 border-t border-white/10">
+                    <button @click="$emit('logout')" class="flex items-center w-full px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-xl transition-colors font-bold text-sm">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    `
+};
+
+// --- PAGES ---
+
+const Home = {
+    setup() {
+        const stats = ref({ total: 0, process: 0, done: 0 });
+        const fetchStats = async () => {
+            try {
+                const res = await api.get('report');
+                const reports = res.data;
+                stats.value.total = reports.length;
+                stats.value.process = reports.filter(r => r.status === 'proses').length;
+                stats.value.done = reports.filter(r => r.status === 'selesai').length;
+            } catch (err) { console.error('Failed to fetch stats'); }
+        };
+        onMounted(fetchStats);
+        return { stats };
+    },
+    template: `
+        <div class="py-20 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
+            <div class="container mx-auto px-4">
+                <div class="max-w-4xl mx-auto text-center">
+                    <div class="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-bold mb-6 animate-bounce">
+                        🏠 Sistem Pelaporan Masyarakat v1.0
+                    </div>
+                    <h1 class="text-5xl md:text-7xl font-black text-slate-900 leading-tight">
+                        Wujudkan <span class="text-secondary underline decoration-secondary/30">Suara Rakyat</span> yang Didengar
+                    </h1>
+                    <p class="mt-8 text-lg md:text-xl text-slate-600 leading-relaxed max-w-2xl mx-auto">
+                        Platform keterbukaan informasi dan pengaduan layanan publik. Bantu kami memperbaiki fasilitas umum dengan satu laporan.
+                    </p>
+                    <div class="mt-10 flex flex-col sm:flex-row justify-center gap-4">
+                        <router-link to="/report" class="px-10 py-5 bg-secondary text-white rounded-2xl font-bold text-lg shadow-2xl shadow-blue-500/40 hover:bg-blue-600 hover:-translate-y-1 transition-all">
+                            Buat Laporan Sekarang
+                        </router-link>
+                        <router-link to="/login" class="px-10 py-5 bg-white text-slate-700 border border-slate-200 rounded-2xl font-bold text-lg hover:bg-slate-50 transition-all">
+                            Area Administrator
+                        </router-link>
+                    </div>
+                </div>
+
+                <div class="mt-24 grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div class="p-8 bg-white rounded-3xl shadow-xl hover:shadow-2xl transition border border-slate-100 text-center group">
+                        <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:rotate-12 transition">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        </div>
+                        <h3 class="text-4xl font-black text-slate-900">{{ stats.total }}</h3>
+                        <p class="text-slate-500 font-bold uppercase tracking-widest text-xs mt-2">Total Laporan</p>
+                    </div>
+                    <div class="p-8 bg-white rounded-3xl shadow-xl hover:shadow-2xl transition border border-slate-100 text-center group">
+                        <div class="w-16 h-16 bg-accent/20 text-accent rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:rotate-12 transition">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        </div>
+                        <h3 class="text-4xl font-black text-slate-900">{{ stats.process }}</h3>
+                        <p class="text-slate-500 font-bold uppercase tracking-widest text-xs mt-2">Sedang Diproses</p>
+                    </div>
+                    <div class="p-8 bg-white rounded-3xl shadow-xl hover:shadow-2xl transition border border-slate-100 text-center group">
+                        <div class="w-16 h-16 bg-green-100 text-green-600 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:rotate-12 transition">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        </div>
+                        <h3 class="text-4xl font-black text-slate-900">{{ stats.done }}</h3>
+                        <p class="text-slate-500 font-bold uppercase tracking-widest text-xs mt-2">Selesai Ditangani</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `
+};
+
+const Login = {
+    setup() {
+        const username = ref('');
+        const password = ref('');
+        const loading = ref(false);
+        const error = ref('');
+
+        const handleLogin = async () => {
+            loading.value = true;
+            error.value = '';
+            try {
+                const res = await api.post('login', { username: username.value, password: password.value });
+                if (res.data.status) {
+                    localStorage.setItem('isLoggedIn', 'true');
+                    localStorage.setItem('token', res.data.data.token);
+                    localStorage.setItem('user', JSON.stringify(res.data.data));
+                    window.location.hash = '/admin/dashboard';
+                    setTimeout(() => window.location.reload(), 100);
+                }
+            } catch (err) {
+                error.value = err.response?.data?.message || 'Login gagal.';
+            } finally { loading.value = false; }
+        };
+
+        return { username, password, loading, error, handleLogin };
+    },
+    template: `
+        <div class="min-h-screen bg-slate-950 flex items-center justify-center p-6 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
+            <div class="max-w-md w-full bg-slate-900 rounded-[2.5rem] shadow-2xl p-10 border border-white/5 backdrop-blur-xl">
+                <div class="text-center mb-10">
+                    <div class="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-500/20">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    </div>
+                    <h2 class="text-3xl font-black text-white">Admin Access</h2>
+                    <p class="text-slate-400 mt-2 font-medium">Layanan Pengaduan Masyarakat</p>
+                </div>
+                <form class="space-y-6" @submit.prevent="handleLogin">
+                    <div>
+                        <label class="block text-xs font-black text-white uppercase tracking-widest mb-2 opacity-50">Username</label>
+                        <input v-model="username" type="text" required class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-secondary focus:border-transparent outline-none transition-all placeholder:text-white/20" placeholder="admin_user">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-black text-white uppercase tracking-widest mb-2 opacity-50">Password</label>
+                        <input v-model="password" type="password" required class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-secondary focus:border-transparent outline-none transition-all placeholder:text-white/20" placeholder="••••••••">
+                    </div>
+                    <div v-if="error" class="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-sm font-bold text-center">
+                        {{ error }}
+                    </div>
+                    <button type="submit" :disabled="loading" class="w-full bg-secondary text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-blue-500/20 hover:bg-blue-600 hover:-translate-y-0.5 transition-all active:scale-95 disabled:opacity-50">
+                        {{ loading ? 'SINKRONISASI...' : 'MASUK SEKARANG' }}
+                    </button>
+                </form>
+            </div>
+        </div>
+    `
+};
+
+const AdminOverview = {
+    setup() {
+        const stats = ref({ total: 0, pending: 0, process: 0, done: 0 });
+        const recentReports = ref([]);
+
+        const fetchData = async () => {
+            try {
+                const res = await api.get('report');
+                const data = res.data;
+                stats.value.total = data.length;
+                stats.value.pending = data.filter(r => r.status === 'pending').length;
+                stats.value.process = data.filter(r => r.status === 'proses').length;
+                stats.value.done = data.filter(r => r.status === 'selesai').length;
+                recentReports.value = data.slice(0, 5);
+            } catch (err) { console.error('Fetch error'); }
+        };
+        onMounted(fetchData);
+        return { stats, recentReports };
+    },
+    template: `
+        <div class="space-y-8">
+            <div>
+                <h1 class="text-3xl font-black text-slate-900">Selamat Datang 👋</h1>
+                <p class="text-slate-500 font-medium">Berikut adalah rangkuman pengaduan hari ini.</p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Cards -->
+                <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center space-x-4">
+                    <div class="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    </div>
+                    <div>
+                        <p class="text-2xl font-black text-slate-900">{{ stats.total }}</p>
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Total</p>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center space-x-4">
+                    <div class="w-14 h-14 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <div>
+                        <p class="text-2xl font-black text-slate-900">{{ stats.pending }}</p>
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Pending</p>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center space-x-4">
+                    <div class="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <div>
+                        <p class="text-2xl font-black text-slate-900">{{ stats.process }}</p>
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Proses</p>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center space-x-4">
+                    <div class="w-14 h-14 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    </div>
+                    <div>
+                        <p class="text-2xl font-black text-slate-900">{{ stats.done }}</p>
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Selesai</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-black text-slate-900">Laporan Terbaru</h3>
+                        <router-link to="/admin/reports" class="text-secondary text-sm font-bold hover:underline">Lihat Semua</router-link>
+                    </div>
+                    <div class="space-y-4">
+                        <div v-for="rep in recentReports" :key="rep.id" class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                            <div class="flex items-center space-x-3 overflow-hidden">
+                                <div class="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm flex-shrink-0 text-slate-400">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                </div>
+                                <div class="truncate">
+                                    <p class="text-sm font-bold text-slate-900 truncate">{{ rep.reporter_name }}</p>
+                                    <p class="text-xs text-slate-500 truncate">{{ rep.category_name }}</p>
+                                </div>
+                            </div>
+                            <span :class="rep.status === 'selesai' ? 'bg-green-100 text-green-700' : (rep.status === 'proses' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-600')" class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">
+                                {{ rep.status }}
+                            </span>
+                        </div>
+                        <div v-if="recentReports.length === 0" class="text-center py-10 text-slate-400 font-bold">Belum ada data.</div>
+                    </div>
+                </div>
+                
+                <div class="bg-primary rounded-[2.5rem] p-10 text-white relative overflow-hidden shadow-2xl">
+                    <div class="relative z-10">
+                        <h3 class="text-3xl font-black leading-tight">Kelola Laporan<br>Dengan Integritas</h3>
+                        <p class="mt-4 text-white/60 font-medium">Setiap aduan yang diselesaikan adalah langkah maju untuk pelayanan publik yang lebih baik.</p>
+                        <router-link to="/admin/reports" class="mt-8 inline-block px-8 py-4 bg-white text-primary rounded-2xl font-black text-sm hover:bg-slate-100 transition shadow-xl">Kelola Sekarang →</router-link>
+                    </div>
+                    <div class="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-secondary/20 rounded-full blur-3xl"></div>
+                    <div class="absolute bottom-0 left-0 -ml-20 -mb-20 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl"></div>
+                </div>
+            </div>
+        </div>
+    `
+};
+
+const AdminReports = {
+    setup() {
+        const reports = ref([]);
+        const search = ref('');
+        const filterStatus = ref('');
+        const loading = ref(false);
+
+        const fetchData = async () => {
+            loading.value = true;
+            try {
+                const res = await api.get('report');
+                reports.value = res.data;
+            } catch (err) { console.error('Fetch error'); }
+            finally { loading.value = false; }
+        };
+
+        const updateReportStatus = async (id, status) => {
+            try {
+                await api.put(`report/${id}`, { status });
+                fetchData();
+            } catch (err) { alert('Gagal update status'); }
+        };
+
+        const deleteReport = async (id) => {
+            if (confirm('Hapus laporan ini secara permanen?')) {
+                try {
+                    await api.delete(`report/${id}`);
+                    fetchData();
+                } catch (err) { alert('Gagal menghapus'); }
+            }
+        };
+
+        const filteredReports = computed(() => {
+            return reports.value.filter(r => {
+                const matchesSearch = r.reporter_name.toLowerCase().includes(search.value.toLowerCase()) ||
+                    r.content.toLowerCase().includes(search.value.toLowerCase());
+                const matchesStatus = filterStatus.value === '' || r.status === filterStatus.value;
+                return matchesSearch && matchesStatus;
+            });
+        });
+
+        onMounted(fetchData);
+        return { reports, search, filterStatus, filteredReports, loading, updateReportStatus, deleteReport };
+    },
+    template: `
+        <div class="space-y-8">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h1 class="text-3xl font-black text-slate-900">Manajemen Pengaduan</h1>
+                    <p class="text-slate-500 font-medium">Total: {{ reports.length }} laporan masuk.</p>
+                </div>
+                <div class="flex gap-3">
+                    <div class="relative">
+                        <input v-model="search" type="text" placeholder="Cari nama atau isi..." class="pl-10 pr-4 py-3 bg-white border border-slate-100 rounded-2xl w-64 shadow-sm focus:ring-2 focus:ring-secondary outline-none text-sm transition">
+                        <svg class="w-5 h-5 absolute left-3 top-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </div>
+                    <select v-model="filterStatus" class="px-4 py-3 bg-white border border-slate-100 rounded-2xl shadow-sm focus:ring-2 focus:ring-secondary outline-none text-sm font-bold text-slate-700 appearance-none">
+                        <option value="">Semua Status</option>
+                        <option value="pending">PENDING</option>
+                        <option value="proses">PROSES</option>
+                        <option value="selesai">SELESAI</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-400 text-[10px] uppercase font-black tracking-widest border-b border-slate-100">
+                            <th class="px-8 py-6">ID</th>
+                            <th class="px-8 py-6">Informasi Pelapor</th>
+                            <th class="px-8 py-6">Isi Pengaduan</th>
+                            <th class="px-8 py-6">Status</th>
+                            <th class="px-8 py-6 text-right">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        <tr v-for="rep in filteredReports" :key="rep.id" class="hover:bg-slate-50 transition group">
+                            <td class="px-8 py-8 font-black text-slate-300">#{{ rep.id }}</td>
+                            <td class="px-8 py-8">
+                                <p class="text-sm font-black text-slate-900 uppercase tracking-tight">{{ rep.reporter_name }}</p>
+                                <span class="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-md">{{ rep.category_name }}</span>
+                            </td>
+                            <td class="px-8 py-8 max-w-md">
+                                <p class="text-sm text-slate-600 line-clamp-2 leading-relaxed mb-2">{{ rep.content }}</p>
+                                <a v-if="rep.evidence_image" :href="'http://localhost/uasweb2/backend-api/public/uploads/' + rep.evidence_image" target="_blank" class="inline-flex items-center text-[10px] font-black text-secondary hover:underline">
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                    LIHAT BUKTI GAMBAR
+                                </a>
+                            </td>
+                            <td class="px-8 py-8">
+                                <select @change="updateReportStatus(rep.id, $event.target.value)" :value="rep.status" 
+                                    :class="rep.status === 'selesai' ? 'text-green-600 bg-green-50' : (rep.status === 'proses' ? 'text-amber-600 bg-amber-50' : 'text-slate-500 bg-slate-100')"
+                                    class="text-[10px] font-black rounded-xl border-none focus:ring-0 cursor-pointer px-4 py-2 uppercase tracking-tighter">
+                                    <option value="pending">PENDING</option>
+                                    <option value="proses">PROSES</option>
+                                    <option value="selesai">SELESAI</option>
+                                </select>
+                            </td>
+                            <td class="px-8 py-8 text-right">
+                                <button @click="deleteReport(rep.id)" class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr v-if="filteredReports.length === 0">
+                            <td colspan="5" class="px-8 py-20 text-center text-slate-400 font-bold">Data tidak ditemukan.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `
+};
+
+const AdminCategories = {
+    setup() {
+        const categories = ref([]);
+        const loading = ref(false);
+        const form = ref({ id: null, name: '', description: '' });
+        const showModal = ref(false);
+
+        const fetchData = async () => {
+            loading.value = true;
+            try {
+                const res = await api.get('category');
+                categories.value = res.data;
+            } catch (err) { console.error('Fetch error'); }
+            finally { loading.value = false; }
+        };
+
+        const save = async () => {
+            try {
+                if (form.value.id) {
+                    await api.put(`category/${form.value.id}`, form.value);
+                } else {
+                    await api.post('category', form.value);
+                }
+                showModal.value = false;
+                form.value = { id: null, name: '', description: '' };
+                fetchData();
+            } catch (err) { alert('Gagal menyimpan'); }
+        };
+
+        const remove = async (id) => {
+            if (confirm('Hapus kategori ini? Laporan di dalamnya mungkin akan terdampak.')) {
+                try {
+                    await api.delete(`category/${id}`);
+                    fetchData();
+                } catch (err) { alert('Gagal menghapus'); }
+            }
+        };
+
+        onMounted(fetchData);
+        return { categories, loading, form, showModal, save, remove };
+    },
+    template: `
+        <div class="space-y-8">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-black text-slate-900">Kategori Aduan</h1>
+                    <p class="text-slate-500 font-medium">Atur klasifikasi pengaduan masyarakat.</p>
+                </div>
+                <button @click="showModal = true; form = {id:null, name:'', description: ''}" class="px-6 py-4 bg-secondary text-white rounded-2xl font-black text-sm shadow-xl shadow-blue-500/20 flex items-center space-x-2 hover:bg-blue-600 hover:-translate-y-0.5 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                    <span>TAMBAH KATEGORI</span>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div v-for="cat in categories" :key="cat.id" class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col justify-between group hover:shadow-xl hover:-translate-y-1 transition">
+                    <div>
+                         <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-6">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+                        </div>
+                        <h3 class="text-xl font-black text-slate-900">{{ cat.name }}</h3>
+                        <p class="mt-2 text-sm text-slate-500 font-medium leading-relaxed">{{ cat.description }}</p>
+                    </div>
+                    <div class="mt-8 pt-6 border-t border-slate-50 flex justify-end space-x-2">
+                        <button @click="form = {...cat}; showModal = true" class="text-xs font-black text-slate-400 hover:text-secondary uppercase tracking-widest transition">Edit</button>
+                        <span class="text-slate-100">|</span>
+                        <button @click="remove(cat.id)" class="text-xs font-black text-slate-400 hover:text-red-500 uppercase tracking-widest transition">Hapus</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal -->
+            <div v-if="showModal" class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+                <div class="bg-white w-full max-w-lg rounded-[3rem] p-10 shadow-2xl relative">
+                    <h2 class="text-3xl font-black text-slate-900 mb-8">{{ form.id ? 'Perbarui' : 'Buat' }} Kategori</h2>
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Nama Kategori</label>
+                            <input v-model="form.name" type="text" class="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-slate-900 focus:ring-2 focus:ring-secondary outline-none transition" placeholder="Contoh: Infrastruktur">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Deskripsi Lengkap</label>
+                            <textarea v-model="form.description" rows="4" class="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-slate-900 focus:ring-2 focus:ring-secondary outline-none transition" placeholder="Jelaskan jenis aduan untuk kategori ini..."></textarea>
+                        </div>
+                    </div>
+                    <div class="mt-10 flex gap-4">
+                        <button @click="showModal = false" class="flex-1 px-6 py-4 bg-slate-50 text-slate-600 rounded-2xl font-black text-sm hover:bg-slate-100 transition">BATAL</button>
+                        <button @click="save" class="flex-1 px-6 py-4 bg-primary text-white rounded-2xl font-black text-sm shadow-xl hover:bg-slate-800 transition">SIMPAN DATA</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `
+};
+
+const ReportForm = {
+    setup() {
+        const form = ref({ reporter_name: '', category_id: '', content: '' });
+        const file = ref(null);
+        const categories = ref([]);
+        const loading = ref(false);
+        const success = ref(false);
+
+        const fetchCategories = async () => {
+            try {
+                const res = await api.get('category');
+                categories.value = res.data;
+            } catch (err) { console.error('Failed to load categories'); }
+        };
+
+        const handleFile = (e) => { file.value = e.target.files[0]; };
+
+        const submitReport = async () => {
+            loading.value = true;
+            try {
+                const formData = new FormData();
+                formData.append('reporter_name', form.value.reporter_name);
+                formData.append('category_id', form.value.category_id);
+                formData.append('content', form.value.content);
+                if (file.value) formData.append('evidence_image', file.value);
+
+                const res = await api.post('report', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+
+                if (res.data.status) {
+                    success.value = true;
+                    form.value = { reporter_name: '', category_id: '', content: '' };
+                    file.value = null;
+                }
+            } catch (err) { alert('Gagal mengirim laporan. Pastikan semua data benar.'); }
+            finally { loading.value = false; }
+        };
+
+        onMounted(fetchCategories);
+        return { form, file, categories, loading, success, handleFile, submitReport };
+    },
+    template: `
+        <div class="min-h-screen bg-slate-50 py-20 px-4">
+            <div class="max-w-3xl mx-auto">
+                <div class="bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100">
+                    <div class="bg-primary p-12 text-white relative overflow-hidden">
+                        <div class="relative z-10">
+                            <h2 class="text-4xl font-black">Form Pengaduan Online</h2>
+                            <p class="mt-4 text-white/60 font-medium text-lg">Identitas Anda terlindungi dan aman dalam enkripsi kami.</p>
+                        </div>
+                        <div class="absolute -top-20 -right-20 w-64 h-64 bg-secondary/20 rounded-full blur-3xl"></div>
+                    </div>
+                    
+                    <div v-if="success" class="p-16 text-center animate-fade-in">
+                        <div class="w-24 h-24 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner">
+                            <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                        </div>
+                        <h3 class="text-3xl font-black text-slate-900">Laporan Diterima!</h3>
+                        <p class="text-slate-500 mt-4 text-lg max-w-sm mx-auto">Terima kasih atas kontribusi Anda. Petugas kami akan segera menindaklanjuti.</p>
+                        <div class="mt-10 space-y-4">
+                            <button @click="success = false" class="w-full bg-secondary text-white px-10 py-5 rounded-2xl font-black text-lg shadow-xl shadow-blue-500/20 hover:bg-blue-600 transition">KIRIM ADUAN LAGI</button>
+                            <router-link to="/" class="block text-slate-400 font-bold hover:text-primary transition underline decoration-slate-200">Kembali ke Beranda</router-link>
+                        </div>
+                    </div>
+
+                    <form v-else class="p-12 space-y-8" @submit.prevent="submitReport">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div class="space-y-2">
+                                <label class="text-xs font-black text-slate-400 uppercase tracking-widest pl-2">Nama Pelapor</label>
+                                <input v-model="form.reporter_name" type="text" required class="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-slate-900 focus:ring-2 focus:ring-secondary outline-none transition" placeholder="Nama Lengkap Sesuai KTP">
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-xs font-black text-slate-400 uppercase tracking-widest pl-2">Jenis Masalah</label>
+                                <select v-model="form.category_id" required class="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-slate-900 focus:ring-2 focus:ring-secondary outline-none transition appearance-none">
+                                    <option value="" disabled>Pilih Kategori</option>
+                                    <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-xs font-black text-slate-400 uppercase tracking-widest pl-2">Detail Kejadian</label>
+                            <textarea v-model="form.content" rows="6" required class="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-slate-900 focus:ring-2 focus:ring-secondary outline-none transition" placeholder="Ceritakan kronologi, lokasi, dan dampak kejadian..."></textarea>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-xs font-black text-slate-400 uppercase tracking-widest pl-2">Unggah Foto Bukti</label>
+                            <div class="mt-1 border-4 border-slate-50 border-dashed rounded-[2rem] p-10 text-center hover:border-secondary/30 transition-all cursor-pointer relative group">
+                                <input type="file" @change="handleFile" accent="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                                <div class="space-y-2">
+                                    <div class="w-16 h-16 bg-blue-50 text-blue-400 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition">
+                                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                    </div>
+                                    <p class="text-slate-900 font-black">Seret Foto ke Sini</p>
+                                    <p class="text-xs text-slate-400 font-bold uppercase tracking-tighter">Maksimal 2MB (JPG, PNG)</p>
+                                    <p v-if="file" class="text-secondary font-black bg-blue-50 px-4 py-1 rounded-full inline-block mt-2">{{ file.name }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pt-6">
+                            <button type="submit" :disabled="loading" class="w-full bg-secondary text-white py-6 rounded-2xl font-black text-xl shadow-2xl shadow-blue-500/30 hover:bg-blue-600 hover:-translate-y-1 transition-all disabled:opacity-50">
+                                {{ loading ? 'MENYEIMBANGKAN DATA...' : 'KIRIM LAPORAN' }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    `
+};
+
+// --- ROUTER ---
+
+const routes = [
+    { path: '/', component: Home },
+    { path: '/login', component: Login },
+    { path: '/report', component: ReportForm },
+    {
+        path: '/admin',
+        component: { template: '<router-view />' },
+        meta: { requiresAuth: true },
+        children: [
+            { path: 'dashboard', component: AdminOverview },
+            { path: 'reports', component: AdminReports },
+            { path: 'categories', component: AdminCategories }
+        ]
+    },
+    // Redirection for legacy dashboard
+    { path: '/dashboard', redirect: '/admin/dashboard' }
+];
+
+const router = createRouter({
+    history: createWebHashHistory(),
+    routes
+});
+
+// Navigation Guard
+router.beforeEach((to, from, next) => {
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    if (to.path === '/login' && isLoggedIn) {
+        next('/admin/dashboard');
+    } else if (to.matched.some(record => record.meta.requiresAuth) && !isLoggedIn) {
+        next('/login');
+    } else {
+        next();
+    }
+});
+
+// --- APP INITIALIZATION ---
+
+const app = createApp({
+    components: { AdminSidebar },
+    setup() {
+        const isLoggedIn = ref(localStorage.getItem('isLoggedIn') === 'true');
+        const user = ref(JSON.parse(localStorage.getItem('user') || '{}'));
+
+        const logout = () => {
+            localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            isLoggedIn.value = false;
+            window.location.hash = '/login';
+            setTimeout(() => window.location.reload(), 100);
+        };
+
+        const isAdminPage = computed(() => router.currentRoute.value.path.startsWith('/admin'));
+
+        return { isLoggedIn, user, logout, isAdminPage };
+    }
+});
+
+app.use(router);
+app.mount('#app');
