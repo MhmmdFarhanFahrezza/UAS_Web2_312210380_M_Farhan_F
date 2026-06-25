@@ -1,6 +1,9 @@
 #!/usr/bin/env php
 <?php
 
+// Include intl stub early
+require_once __DIR__ . '/intl_stub.php';
+
 /**
  * This file is part of CodeIgniter 4 framework.
  *

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Report | Sistem Pelaporan Layanan Masyarakat Modern</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0a0f1d',
+                        secondary: '#2563eb',
+                        accent: '#facc15',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Vue 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Vue Router CDN -->
+    <script src="https://unpkg.com/vue-router@4"></script>
+    <!-- Axios CDN -->
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+            scroll-behavior: smooth;
+        }
+
+        .fade-enter-active,
+        .fade-leave-active {
+            transition: all 0.3s ease;
+        }
+
+        .fade-enter-from,
+        .fade-leave-to {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        ::selection {
+            background: #2563eb;
+            color: white;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+
+<body class="antialiased">
+    <div id="app">
+        <!-- ADMIN LAYOUT -->
+        <div v-if="isAdminPage && isLoggedIn" class="min-h-screen bg-slate-50 flex">
+            <!-- Sidebar Component -->
+            <admin-sidebar :user="user" @logout="logout"></admin-sidebar>
+
+            <!-- Main Content Area -->
+            <div class="flex-1 md:ml-64 flex flex-col min-h-screen">
+                <!-- Admin Header -->
+                <header
+                    class="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-40 px-8 py-4 flex justify-between items-center">
+                    <div class="flex items-center space-x-2 md:hidden">
+                        <div class="w-8 h-8 bg-secondary rounded-lg"></div>
+                        <span class="font-black text-primary">E-Report</span>
+                    </div>
+                    <div class="hidden md:block">
+                        <p class="text-xs font-black text-slate-400 uppercase tracking-widest">Dashboard Control Panel
+                        </p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div class="text-right hidden sm:block">
+                            <p class="text-sm font-black text-slate-900">{{ user.name }}</p>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Administrator</p>
+                        </div>
+                        <div
+                            class="w-10 h-10 bg-slate-100 rounded-full border-2 border-white shadow-sm overflow-hidden text-slate-400 flex items-center justify-center">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+                                    clip-rule="evenodd"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </header>
+
+                <main class="p-8 flex-1">
+                    <router-view v-slot="{ Component }">
+                        <transition name="fade" mode="out-in">
+                            <component :is="Component" />
+                        </transition>
+                    </router-view>
+                </main>
+            </div>
+        </div>
+
+        <!-- PUBLIC / LOGIN LAYOUT -->
+        <div v-else class="min-h-screen flex flex-col">
+            <!-- Public Navigation -->
+            <nav class="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-50">
+                <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+                    <router-link to="/" class="flex items-center space-x-3 group">
+                        <div
+                            class="w-10 h-10 bg-secondary rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:rotate-6 transition">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z">
+                                </path>
+                            </svg>
+                        </div>
+                        <span class="text-xl font-black text-slate-900 tracking-tighter">E-REPORT</span>
+                    </router-link>
+
+                    <div class="flex items-center space-x-1 sm:space-x-4">
+                        <router-link to="/"
+                            class="px-4 py-2 text-sm font-bold text-slate-600 hover:text-secondary hover:bg-blue-50 rounded-xl transition">Beranda</router-link>
+                        <router-link to="/report"
+                            class="px-4 py-2 text-sm font-bold text-slate-600 hover:text-secondary hover:bg-blue-50 rounded-xl transition">Lapor</router-link>
+                        <div class="w-px h-6 bg-slate-200 mx-2 hidden sm:block"></div>
+                        <router-link v-if="!isLoggedIn" to="/login"
+                            class="bg-primary text-white px-6 py-2.5 rounded-xl text-sm font-black shadow-xl shadow-slate-900/10 hover:bg-slate-800 transition active:scale-95">LOGIN
+                            ADMIN</router-link>
+                        <router-link v-else to="/admin/dashboard"
+                            class="bg-secondary text-white px-6 py-2.5 rounded-xl text-sm font-black shadow-xl shadow-blue-500/10 hover:bg-blue-600 transition active:scale-95">DASHBOARD</router-link>
+                    </div>
+                </div>
+            </nav>
+
+            <main class="flex-1 h-full">
+                <router-view v-slot="{ Component }">
+                    <transition name="fade" mode="out-in">
+                        <component :is="Component" />
+                    </transition>
+                </router-view>
+            </main>
+
+            <footer v-if="$route.path === '/' || $route.path === '/report'" class="bg-slate-950 text-white py-16">
+                <div class="container mx-auto px-6">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-12">
+                        <div class="col-span-2">
+                            <div class="flex items-center space-x-3 mb-6">
+                                <div class="w-10 h-10 bg-secondary rounded-xl flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z">
+                                        </path>
+                                    </svg>
+                                </div>
+                                <span class="text-2xl font-black tracking-tighter">E-REPORT</span>
+                            </div>
+                            <p class="text-slate-400 font-medium max-w-sm leading-relaxed">Platform pengaduan masyarakat
+                                terintegrasi untuk mewujudkan pelayanan publik yang transparan dan akuntabel di era
+                                digital.</p>
+                        </div>
+                        <div>
+                            <h4 class="font-black mb-6 uppercase text-xs tracking-widest text-slate-500">Navigasi</h4>
+                            <ul class="space-y-4 font-bold text-slate-400">
+                                <li><a href="#" class="hover:text-white transition">Tentang Kami</a></li>
+                                <li><a href="#" class="hover:text-white transition">Alur Pelaporan</a></li>
+                                <li><a href="#" class="hover:text-white transition">Kebijakan Privasi</a></li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="font-black mb-6 uppercase text-xs tracking-widest text-slate-500">Kontak</h4>
+                            <ul class="space-y-4 font-bold text-slate-400">
+                                <li>support@ereport.com</li>
+                                <li>(021) 1234-5678</li>
+                                <li>Jakarta, Indonesia</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="mt-16 pt-8 border-t border-white/5 text-center text-slate-500 font-bold text-sm">
+                        &copy; 2024 E-Report System. Dibuat untuk UAS Pemrograman Web 2.
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <!-- MAIN APP SCRIPT -->
+    <script src="app.js"></script>
+</body>
+
+</html>
